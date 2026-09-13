@@ -1,0 +1,55 @@
+name: dse-study-studio
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_USER: study
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a unique database password}
+      POSTGRES_DB: study
+    volumes:
+      - study-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U study -d study']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  web:
+    build: .
+    environment:
+      NODE_ENV: production
+      PRIVATE_DEPLOYMENT: 'true'
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set https://your-domain}
+      STUDY_PASSWORD_HASH: ${STUDY_PASSWORD_HASH:?Run npm run setup}
+      HOST: 0.0.0.0
+      PORT: 4317
+      DATABASE_URL: postgres://study:${POSTGRES_PASSWORD}@postgres:5432/study
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:?Generate VAPID keys}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?Generate VAPID keys}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:?Set VAPID contact}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4317/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  https:
+    image: caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    ports: ['80:80', '443:443']
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  study-data:
+  caddy-data:
+  caddy-config:

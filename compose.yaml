@@ -1,0 +1,43 @@
+name: dse-study-studio
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    environment:
+      POSTGRES_USER: study
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD; run npm run setup first}
+      POSTGRES_DB: study
+    ports:
+      - '127.0.0.1:55439:5432'
+    volumes:
+      - study-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U study -d study']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  web:
+    build: .
+    ports:
+      - '127.0.0.1:4317:4317'
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:4317}
+      STUDY_PASSWORD_HASH: ${STUDY_PASSWORD_HASH:?Run npm run setup first}
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4317
+      DATABASE_URL: postgres://study:${POSTGRES_PASSWORD}@postgres:5432/study
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:you@example.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4317/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  study-data:

@@ -1,0 +1,12 @@
+# Use only with: docker compose -p dse-study-studio-v02-verify -f compose.yaml -f compose.verify.yaml
+# Isolated volume and localhost ports; does not reuse the user's study database.
+services:
+  postgres:
+    ports: !override ['127.0.0.1:55440:5432']
+  web:
+    image: dse-study-studio-web:latest
+    ports: !override ['127.0.0.1:4320:4317']
+    environment:
+      PUBLIC_ORIGIN: http://localhost:4320
+      VAPID_PUBLIC_KEY: ''
+      VAPID_PRIVATE_KEY: ''
